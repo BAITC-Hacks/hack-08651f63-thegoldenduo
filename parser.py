@@ -30,6 +30,13 @@ COMMON_ALIASES = {
     "name": {"наименование", "название", "name"},
     "category": {"категория", "category"},
     "supplier": {"поставщик", "supplier"},
+    "lead_time_days": {
+        "срок поставки",
+        "срок поставки, дней",
+        "срок поставки (дни)",
+        "lead_time_days",
+        "lead time days",
+    },
 }
 
 

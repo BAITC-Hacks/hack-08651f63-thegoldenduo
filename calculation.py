@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from datetime import date
 from typing import Any
 
 import numpy as np
@@ -27,6 +28,11 @@ def _prepare(frame: pd.DataFrame) -> pd.DataFrame:
     if "in_transit" not in data:
         data["in_transit"] = 0.0
     data["in_transit"] = pd.to_numeric(data["in_transit"], errors="coerce").fillna(0.0)
+    if "lead_time_days" not in data:
+        data["lead_time_days"] = 14
+    data["lead_time_days"] = (
+        pd.to_numeric(data["lead_time_days"], errors="coerce").fillna(14).clip(lower=0)
+    )
     for column, default in {
         "name": None,
         "category": "Без категории",
@@ -173,6 +179,28 @@ def _stockout_details(all_sku_data: pd.DataFrame, clean_sku_data: pd.DataFrame) 
     return compensation, periods
 
 
+def _peak_season_start(monthly: pd.Series, today: date | None = None) -> str | None:
+    """Return the nearest future start of a reliably recurring peak month."""
+    if len(monthly) < 24 or monthly.index.month.nunique() < 12:
+        return None
+
+    month_averages = monthly.groupby(monthly.index.month).mean()
+    overall_average = float(monthly.mean())
+    if overall_average <= 0:
+        return None
+
+    peak_month = int(month_averages.idxmax())
+    peak_strength = float(month_averages.loc[peak_month]) / overall_average
+    if peak_strength < 1.15:
+        return None
+
+    reference = today or date.today()
+    candidate = date(reference.year, peak_month, 1)
+    if candidate <= reference:
+        candidate = date(reference.year + 1, peak_month, 1)
+    return candidate.isoformat()
+
+
 def calculate_orders(
     source: pd.DataFrame,
     warehouse: str | None = None,
@@ -194,12 +222,24 @@ def calculate_orders(
         if clean_sku_data.empty:
             continue
         monthly = _monthly_history(clean_sku_data)
-        forecast, base_demand, seasonality_factor, trend_growth = _forecast(monthly)
+        forecast, base_demand, seasonality_factor, sku_trend_growth = _forecast(monthly)
+        category = str(all_sku_data.iloc[-1]["category"])
+        category_data = clean_data[clean_data["category"] == category]
+        category_monthly = _monthly_history(category_data)
+        _, _, _, category_trend_growth = _forecast(category_monthly)
+
+        # The SKU model remains dominant, while category growth provides a stable
+        # signal for sparse/noisy item histories.
+        trend_growth = 0.75 * sku_trend_growth + 0.25 * category_trend_growth
+        forecast *= 1.0 + trend_growth - sku_trend_growth
+        forecast = max(forecast, 0.0)
         stockout_compensation, stockout_periods = _stockout_details(all_sku_data, clean_sku_data)
+        peak_season_start = _peak_season_start(monthly)
 
         latest = all_sku_data.sort_values("date").iloc[-1]
         current_stock = max(float(latest["stock"]), 0.0)
         in_transit = max(float(latest["in_transit"]), 0.0)
+        lead_time_days = int(round(float(latest["lead_time_days"])))
         recommended = max(0, math.ceil(forecast + stockout_compensation - current_stock - in_transit))
         if current_stock <= 0 or recommended >= max(forecast * 0.75, 1.0):
             urgency = "critical"
@@ -215,6 +255,7 @@ def calculate_orders(
         explanation = (
             f"Прогноз спроса: {forecast:.1f}; текущий остаток: {current_stock:.1f}; "
             f"в пути: {in_transit:.1f}; компенсация stockout: {stockout_compensation:.1f}. "
+            f"Тренд артикула и категории «{category}» учтён. "
             "Крупные разовые продажи исключены IQR-детектором."
         )
         orders.append(
@@ -226,6 +267,8 @@ def calculate_orders(
                 "warehouse": str(latest["warehouse"]),
                 "recommended_qty": recommended,
                 "urgency": urgency,
+                "lead_time_days": lead_time_days,
+                "peak_season_start": peak_season_start,
                 "reasoning": {
                     "base_demand": _number(base_demand),
                     "seasonality_factor": _number(seasonality_factor),

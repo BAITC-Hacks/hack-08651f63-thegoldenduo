@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -45,6 +46,8 @@ ORDERS_CONTRACT: dict[str, Any] = {
             "warehouse": "Склад №1",
             "recommended_qty": 120,
             "urgency": "critical",
+            "lead_time_days": 14,
+            "peak_season_start": "2027-06-01",
             "reasoning": {
                 "base_demand": 80,
                 "seasonality_factor": 1.4,
@@ -73,6 +76,7 @@ ORDERS_CONTRACT: dict[str, Any] = {
 _uploaded_preview: dict[str, Any] | None = None
 _uploaded_data: Any | None = None
 _approvals: list[dict[str, Any]] = []
+_adjustments: dict[str, dict[str, Any]] = {}
 
 
 @app.post("/upload")
@@ -104,6 +108,7 @@ async def calculate(warehouse: str | None = None, category: str | None = None) -
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     ORDERS_CONTRACT.clear()
     ORDERS_CONTRACT.update(result)
+    _adjustments.clear()
     return {"status": "completed", "warehouse": warehouse, "category": category, "result": ORDERS_CONTRACT}
 
 
@@ -122,15 +127,60 @@ async def get_anomalies() -> list[dict[str, Any]]:
 async def adjust_order(sku: str, adjustment: Adjustment) -> dict[str, Any]:
     for order in ORDERS_CONTRACT["orders"]:
         if order["sku"] == sku:
+            previous_quantity = order["recommended_qty"]
             order["recommended_qty"] = adjustment.quantity
-            return {"status": "adjusted", "sku": sku, "quantity": adjustment.quantity, "reason": adjustment.reason}
+            record = {
+                "status": "adjusted",
+                "sku": sku,
+                "previous_quantity": previous_quantity,
+                "quantity": adjustment.quantity,
+                "reason": adjustment.reason,
+            }
+            _adjustments[sku] = record
+            return record
     raise HTTPException(status_code=404, detail="Артикул не найден.")
 
 
 @app.post("/orders/approve")
 async def approve_orders(request: ApprovalRequest) -> dict[str, Any]:
-    """Record approval only. This endpoint never sends an order to a supplier."""
-    selected_skus = request.skus or [order["sku"] for order in ORDERS_CONTRACT["orders"]]
-    approval = {"skus": selected_skus, "comment": request.comment, "status": "approved_for_export"}
+    """Group and record an export-ready order without sending it to suppliers."""
+    available = {order["sku"]: order for order in ORDERS_CONTRACT["orders"]}
+    selected_skus = list(dict.fromkeys(request.skus or available.keys()))
+    missing_skus = [sku for sku in selected_skus if sku not in available]
+    if missing_skus:
+        raise HTTPException(status_code=404, detail={"message": "Артикулы не найдены.", "skus": missing_skus})
+    if not selected_skus:
+        raise HTTPException(status_code=409, detail="Нет позиций для утверждения.")
+
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for sku in selected_skus:
+        order = available[sku]
+        grouped.setdefault(order["supplier"], []).append(
+            {
+                "sku": sku,
+                "name": order["name"],
+                "warehouse": order["warehouse"],
+                "quantity": order["recommended_qty"],
+                "adjustment_reason": _adjustments.get(sku, {}).get("reason"),
+            }
+        )
+
+    supplier_groups = [
+        {
+            "supplier": supplier,
+            "total_items": len(items),
+            "total_quantity": sum(item["quantity"] for item in items),
+            "items": items,
+        }
+        for supplier, items in grouped.items()
+    ]
+    approval = {
+        "approval_id": len(_approvals) + 1,
+        "approved_at": datetime.now(timezone.utc).isoformat(),
+        "status": "approved_for_export",
+        "sent_to_supplier": False,
+        "comment": request.comment,
+        "suppliers": supplier_groups,
+    }
     _approvals.append(approval)
     return approval
