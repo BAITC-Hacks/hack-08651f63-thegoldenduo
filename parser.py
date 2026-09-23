@@ -23,7 +23,14 @@ COMMON_ALIASES = {
     "date": {"дата", "дата продажи", "date"},
     "quantity": {"количество", "qty", "quantity", "кол-во"},
     "price": {"цена", "price", "стоимость"},
-    "client_id": {"обезличенный клиент", "client_id", "клиент", "контрагент"},
+    "client_id": {
+        "обезличенный клиент",
+        "обезличенный_клиент_id",
+        "обезличенный клиент id",
+        "client_id",
+        "клиент",
+        "контрагент",
+    },
     "warehouse": {"склад", "warehouse"},
     "stock": {"остаток", "stock", "остаток на складе"},
     "in_transit": {"товары в пути", "в пути", "in_transit", "goods_in_transit"},
@@ -48,11 +55,69 @@ def _normalise_column(name: object) -> str:
     return " ".join(str(name).strip().lower().split())
 
 
+def _require_columns(frame: pd.DataFrame, columns: set[str], sheet_name: str) -> None:
+    missing = sorted(columns - set(frame.columns))
+    if missing:
+        raise FileValidationError(
+            f"На листе «{sheet_name}» не найдены колонки: {', '.join(missing)}."
+        )
+
+
+def _read_project_workbook(workbook: pd.ExcelFile, sheets: dict[str, str]) -> pd.DataFrame:
+    """Combine the repository's four-sheet test dataset into the canonical input table."""
+    sales = _canonicalise_columns(pd.read_excel(workbook, sheet_name=sheets["продажи"]), COMMON_ALIASES)
+    stock = _canonicalise_columns(pd.read_excel(workbook, sheet_name=sheets["остатки"]), COMMON_ALIASES)
+    transit = _canonicalise_columns(
+        pd.read_excel(workbook, sheet_name=sheets["товары в пути"]), COMMON_ALIASES
+    )
+    suppliers = _canonicalise_columns(
+        pd.read_excel(workbook, sheet_name=sheets["поставщики"]), COMMON_ALIASES
+    )
+
+    _require_columns(
+        sales,
+        {"sku", "name", "category", "date", "quantity", "price", "client_id", "warehouse"},
+        sheets["продажи"],
+    )
+    _require_columns(stock, {"sku", "date", "warehouse", "stock"}, sheets["остатки"])
+    _require_columns(transit, {"sku", "warehouse", "in_transit"}, sheets["товары в пути"])
+    _require_columns(suppliers, {"sku", "supplier", "lead_time_days"}, sheets["поставщики"])
+
+    try:
+        combined = sales.merge(
+            stock[["sku", "date", "warehouse", "stock"]],
+            on=["sku", "date", "warehouse"],
+            how="left",
+            validate="many_to_one",
+        )
+        combined = combined.merge(
+            transit[["sku", "warehouse", "in_transit"]],
+            on=["sku", "warehouse"],
+            how="left",
+            validate="many_to_one",
+        )
+        return combined.merge(
+            suppliers[["sku", "supplier", "lead_time_days"]],
+            on="sku",
+            how="left",
+            validate="many_to_one",
+        )
+    except pd.errors.MergeError as exc:
+        raise FileValidationError(
+            "Не удалось объединить листы: ключи артикула, даты или склада не уникальны."
+        ) from exc
+
+
 def _read_table(content: bytes, filename: str) -> pd.DataFrame:
     suffix = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     source = BytesIO(content)
     if suffix in {"xlsx", "xls"}:
-        return pd.read_excel(source)
+        with pd.ExcelFile(source) as workbook:
+            sheets = {_normalise_column(name): name for name in workbook.sheet_names}
+            project_sheets = {"продажи", "остатки", "товары в пути", "поставщики"}
+            if project_sheets.issubset(sheets):
+                return _read_project_workbook(workbook, sheets)
+            return pd.read_excel(workbook, sheet_name=0)
     if suffix == "csv":
         try:
             return pd.read_csv(source, encoding="utf-8-sig")

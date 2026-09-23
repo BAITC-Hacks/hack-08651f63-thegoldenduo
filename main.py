@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -48,45 +49,18 @@ class MarketAlternativesRequest(BaseModel):
     category: str = Field(min_length=1, max_length=200)
 
 
-ORDERS_CONTRACT: dict[str, Any] = {
-    "orders": [
-        {
-            "sku": "ABC-123",
-            "name": "Автоматический выключатель 16А",
-            "category": "Автоматика",
-            "supplier": "ООО Поставщик-1",
-            "warehouse": "Склад №1",
-            "recommended_qty": 120,
-            "urgency": "critical",
-            "lead_time_days": 14,
-            "peak_season_start": "2027-06-01",
-            "reasoning": {
-                "base_demand": 80,
-                "seasonality_factor": 1.4,
-                "stockout_compensation": 15,
-                "trend_growth": 0.05,
-                "explanation_text": "Спрос растёт; сезонный коэффициент и период дефицита учтены в рекомендации.",
-            },
-            "history": [
-                {"date": "2026-01-01", "qty": 12},
-                {"date": "2026-02-01", "qty": 15},
-            ],
-            "stockout_periods": [{"start": "2026-03-10", "end": "2026-03-25"}],
-        }
-    ],
-    "excluded_anomalies": [
-        {
-            "sku": "ABC-123",
-            "date": "2026-04-02",
-            "qty": 500,
-            "client_id": "anon-9981",
-            "reason": "разовая крупная продажа одному клиенту",
-        }
-    ],
-}
+PROJECT_DATASET_PATH = Path(__file__).resolve().parent / "data" / "test-dataset.xlsx"
+
+
+def _load_project_dataset() -> tuple[Any, dict[str, Any]]:
+    """Load the repository's own test dataset and prepare the initial recommendations."""
+    frame, _ = parse_upload(PROJECT_DATASET_PATH.read_bytes(), PROJECT_DATASET_PATH.name, "1c")
+    return frame, calculate_orders(frame)
+
+
+_uploaded_data, ORDERS_CONTRACT = _load_project_dataset()
 
 _uploaded_preview: dict[str, Any] | None = None
-_uploaded_data: Any | None = None
 _approvals: list[dict[str, Any]] = []
 _adjustments: dict[str, dict[str, Any]] = {}
 
