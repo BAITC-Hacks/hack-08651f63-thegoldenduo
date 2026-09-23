@@ -1,0 +1,80 @@
+{
+  "orders": [
+    {
+      "sku": "ABC-123",
+      "name": "Автоматический выключатель 16А",
+      "category": "Автоматика",
+      "supplier": "ООО ЭлектроСнаб",
+      "warehouse": "Склад №1",
+      "recommended_qty": 120,
+      "urgency": "critical",
+      "reasoning": {"base_demand": 80, "seasonality_factor": 1.4, "stockout_compensation": 15, "trend_growth": 0.05, "explanation_text": "Спрос стабильно растёт на 5%; сезонный коэффициент 1,4 и компенсация дефицита повышают потребность."},
+      "history": [{"date":"2026-01-01","qty":57},{"date":"2026-02-01","qty":64},{"date":"2026-03-01","qty":71},{"date":"2026-04-01","qty":80}],
+      "stockout_periods": [{"start":"2026-03-10","end":"2026-03-25"}]
+    },
+    {
+      "sku": "CAB-505",
+      "name": "Кабель ВВГнг-LS 3×2,5",
+      "category": "Кабельная продукция",
+      "supplier": "ТОО Кабель KZ",
+      "warehouse": "Склад №2",
+      "recommended_qty": 850,
+      "urgency": "high",
+      "reasoning": {"base_demand": 620, "seasonality_factor": 1.2, "stockout_compensation": 40, "trend_growth": 0.08, "explanation_text": "Монтажный сезон увеличивает спрос; устойчивый рост 8% требует пополнения с запасом."},
+      "history": [{"date":"2026-01-01","qty":420},{"date":"2026-02-01","qty":510},{"date":"2026-03-01","qty":610},{"date":"2026-04-01","qty":670}],
+      "stockout_periods": []
+    },
+    {
+      "sku": "LGT-220",
+      "name": "Светильник LED 36Вт",
+      "category": "Светотехника",
+      "supplier": "ООО Световой Контур",
+      "warehouse": "Склад №1",
+      "recommended_qty": 90,
+      "urgency": "medium",
+      "reasoning": {"base_demand": 70, "seasonality_factor": 1.1, "stockout_compensation": 0, "trend_growth": 0.02, "explanation_text": "Спрос ровный, с умеренным сезонным повышением и небольшим положительным трендом."},
+      "history": [{"date":"2026-01-01","qty":61},{"date":"2026-02-01","qty":68},{"date":"2026-03-01","qty":71},{"date":"2026-04-01","qty":73}],
+      "stockout_periods": []
+    },
+    {
+      "sku": "TOOL-040",
+      "name": "Набор диэлектрических отвёрток",
+      "category": "Инструменты",
+      "supplier": "ТОО ProfiTools",
+      "warehouse": "Склад №3",
+      "recommended_qty": 35,
+      "urgency": "low",
+      "reasoning": {"base_demand": 30, "seasonality_factor": 1.0, "stockout_compensation": 0, "trend_growth": -0.03, "explanation_text": "Спрос снижается на 3%, поэтому рекомендован небольшой плановый заказ без дополнительного резерва."},
+      "history": [{"date":"2026-01-01","qty":36},{"date":"2026-02-01","qty":33},{"date":"2026-03-01","qty":30},{"date":"2026-04-01","qty":29}],
+      "stockout_periods": []
+    },
+    {
+      "sku": "SOCK-110",
+      "name": "Розетка наружная IP44",
+      "category": "Электроустановочные изделия",
+      "supplier": "ООО ЭлектроСнаб",
+      "warehouse": "Склад №2",
+      "recommended_qty": 210,
+      "urgency": "high",
+      "reasoning": {"base_demand": 145, "seasonality_factor": 1.3, "stockout_compensation": 22, "trend_growth": 0.04, "explanation_text": "После периода отсутствия товара восстановлен скрытый спрос; сезонный коэффициент повышает заказ."},
+      "history": [{"date":"2026-01-01","qty":104},{"date":"2026-02-01","qty":120},{"date":"2026-03-01","qty":98},{"date":"2026-04-01","qty":149}],
+      "stockout_periods": [{"start":"2026-03-05","end":"2026-03-18"}]
+    },
+    {
+      "sku": "REL-024",
+      "name": "Реле времени 24В",
+      "category": "Автоматика",
+      "supplier": "ТОО АвтоКонтроль",
+      "warehouse": "Склад №3",
+      "recommended_qty": 55,
+      "urgency": "medium",
+      "reasoning": {"base_demand": 45, "seasonality_factor": 1.1, "stockout_compensation": 5, "trend_growth": 0.06, "explanation_text": "Рост спроса на 6% и короткий stockout-период обосновывают точечное пополнение."},
+      "history": [{"date":"2026-01-01","qty":35},{"date":"2026-02-01","qty":39},{"date":"2026-03-01","qty":43},{"date":"2026-04-01","qty":46}],
+      "stockout_periods": [{"start":"2026-02-20","end":"2026-02-24"}]
+    }
+  ],
+  "excluded_anomalies": [
+    {"sku":"ABC-123","date":"2026-04-02","qty":500,"client_id":"anon-9981","reason":"разовая крупная продажа одному клиенту"},
+    {"sku":"CAB-505","date":"2026-03-14","qty":4200,"client_id":"anon-4412","reason":"нетипичный оптовый заказ, исключён из регулярной потребности"}
+  ]
+}
