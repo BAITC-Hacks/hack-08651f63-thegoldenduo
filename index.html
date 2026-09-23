@@ -58,11 +58,11 @@
               <p class="eyebrow">Шаг 1</p><h2 id="upload-heading" class="card-title">Загрузите исходные данные</h2>
               <p class="mt-2 text-sm text-slate-400">Выберите формат выгрузки, затем проверьте превью и запустите расчёт.</p>
               <div class="mt-5 grid gap-3 sm:grid-cols-2">
-                <button class="upload-option is-selected"><span>Формат 1С</span><small>Материальная ведомость и продажи</small></button>
-                <button class="upload-option"><span>Свой файл</span><small>Excel или CSV для быстрого анализа</small></button>
+                <button id="mode-1c" class="upload-option is-selected" data-mode="1c" type="button"><span>Формат 1С</span><small>Материальная ведомость и продажи</small></button>
+                <button id="mode-custom" class="upload-option" data-mode="custom" type="button"><span>Свой файл</span><small>Excel или CSV для быстрого анализа</small></button>
               </div>
               <label class="drop-zone mt-5" for="file-input"><input id="file-input" type="file" accept=".csv,.xlsx,.xls" /><span>Перетащите файл сюда или выберите на компьютере</span><small>CSV, XLSX · до 20 МБ</small></label>
-              <button class="primary-button mt-5">Запустить расчёт</button>
+              <button id="run-calculation-button" class="primary-button mt-5" type="button" disabled>Запустить расчёт</button>
             </article>
             <article class="card">
               <p class="eyebrow">Данные сервера</p><h2 class="card-title">Текущий расчёт</h2>

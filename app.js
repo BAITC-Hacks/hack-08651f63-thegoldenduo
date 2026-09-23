@@ -568,9 +568,84 @@ const metricCritical = document.getElementById('metric-critical');
 const metricSuppliers = document.getElementById('metric-suppliers');
 const metricQuantity = document.getElementById('metric-quantity');
 const calculationHistory = document.getElementById('calculation-history');
+const uploadOptions = document.querySelectorAll('.upload-option');
+const dropZone = document.querySelector('.drop-zone');
+const fileInput = document.getElementById('file-input');
+const runCalculationButton = document.getElementById('run-calculation-button');
+const uploadState = { uploaded: false };
+
+window.selectedUploadMode = document.querySelector('.upload-option.is-selected')?.dataset.mode || '1c';
+
+function setUploadStatus(message) {
+  document.getElementById('data-status').textContent = message;
+}
+
+async function sendUpload(file) {
+  uploadState.uploaded = false;
+  runCalculationButton.disabled = true;
+  setUploadStatus(`Загружаем файл: ${file.name}`);
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('mode', window.selectedUploadMode);
+
+  try {
+    const response = await fetch('/upload', { method: 'POST', body: formData });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.valid) {
+      const detail = typeof payload.detail === 'string' ? payload.detail : `HTTP ${response.status}`;
+      throw new Error(detail);
+    }
+    uploadState.uploaded = true;
+    runCalculationButton.disabled = false;
+    setUploadStatus(`Файл загружен: ${file.name}`);
+  } catch (error) {
+    setUploadStatus(`Не удалось загрузить файл: ${error instanceof Error ? error.message : 'неизвестная ошибка'}`);
+    console.error(error);
+  }
+}
+
+async function runCalculation() {
+  if (!uploadState.uploaded) return;
+  runCalculationButton.disabled = true;
+  setUploadStatus('Выполняем расчёт…');
+  try {
+    const response = await fetch('/calculate', { method: 'POST' });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const detail = typeof payload.detail === 'string' ? payload.detail : `HTTP ${response.status}`;
+      throw new Error(detail);
+    }
+    await loadServerData();
+    setUploadStatus('Расчёт успешно завершён');
+  } catch (error) {
+    setUploadStatus(`Не удалось выполнить расчёт: ${error instanceof Error ? error.message : 'неизвестная ошибка'}`);
+    console.error(error);
+  } finally {
+    runCalculationButton.disabled = false;
+  }
+}
 
 document.querySelectorAll('.tab').forEach((button) => button.addEventListener('click', () => setActiveTab(button.dataset.tab)));
 document.querySelectorAll('[data-go-tab]').forEach((button) => button.addEventListener('click', () => setActiveTab(button.dataset.goTab)));
+uploadOptions.forEach((button) => button.addEventListener('click', () => {
+  uploadOptions.forEach((option) => option.classList.remove('is-selected'));
+  button.classList.add('is-selected');
+  window.selectedUploadMode = button.dataset.mode;
+  uploadState.uploaded = false;
+  runCalculationButton.disabled = true;
+}));
+dropZone.addEventListener('click', (event) => {
+  if (event.target.tagName !== 'INPUT') {
+    event.preventDefault();
+    fileInput.click();
+  }
+});
+fileInput.addEventListener('change', (event) => {
+  const file = event.target.files[0];
+  if (file) void sendUpload(file);
+});
+runCalculationButton.addEventListener('click', () => { void runCalculation(); });
 [warehouseFilter, categoryFilter, supplierFilter, urgencyFilter].forEach((filter) => filter.addEventListener('change', () => { renderOrders(); renderExportStatus(); }));
 ordersBody.addEventListener('click', (event) => {
   const marketButton = event.target.closest('[data-market-sku]');
