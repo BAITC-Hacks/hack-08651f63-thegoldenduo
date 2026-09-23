@@ -8,7 +8,9 @@ from typing import Any
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
+from ai_service import AIServiceError, find_market_alternatives, generate_market_trends
 from calculation import CalculationError, calculate_orders
 from parser import FileValidationError, make_preview, parse_upload
 
@@ -34,6 +36,16 @@ class Adjustment(BaseModel):
 class ApprovalRequest(BaseModel):
     skus: list[str] | None = None
     comment: str | None = Field(default=None, max_length=1000)
+
+
+class MarketTrendsRequest(BaseModel):
+    category: str = Field(min_length=1, max_length=200)
+
+
+class MarketAlternativesRequest(BaseModel):
+    sku: str = Field(min_length=1, max_length=200)
+    name: str = Field(min_length=1, max_length=500)
+    category: str = Field(min_length=1, max_length=200)
 
 
 ORDERS_CONTRACT: dict[str, Any] = {
@@ -184,3 +196,36 @@ async def approve_orders(request: ApprovalRequest) -> dict[str, Any]:
     }
     _approvals.append(approval)
     return approval
+
+
+@app.post("/ai/market-trends")
+async def market_trends(request: MarketTrendsRequest) -> dict[str, Any]:
+    """Proxy market research to OpenAI without exposing the API key to the browser."""
+    try:
+        return await run_in_threadpool(generate_market_trends, request.category)
+    except AIServiceError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Сервис анализа рынка временно недоступен. Повторите запрос позже.",
+        ) from exc
+
+
+@app.post("/ai/market-alternatives")
+async def market_alternatives(request: MarketAlternativesRequest) -> dict[str, Any]:
+    """Proxy supplier search to OpenAI and return strict structured data."""
+    try:
+        return await run_in_threadpool(
+            find_market_alternatives,
+            request.sku,
+            request.name,
+            request.category,
+        )
+    except AIServiceError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Сервис поиска поставщиков временно недоступен. Повторите запрос позже.",
+        ) from exc
