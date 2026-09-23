@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HACKALEM AI — Заказы поставщикам</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      document.documentElement.dataset.theme = localStorage.getItem('hackalem-theme') || 'dark';
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: { ink: '#0b1120', panel: '#111827', line: '#263244', accent: '#38bdf8' }
+          }
+        }
+      };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <script src="fonts/roboto-cyrillic.js"></script>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body class="min-h-screen bg-ink text-slate-100">
+    <div class="mx-auto max-w-[1600px] px-4 py-6 lg:px-8">
+      <header class="mb-6 flex flex-col gap-4 border-b border-line pb-6 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p class="text-sm font-semibold uppercase tracking-[0.22em] text-sky-400">HACKALEM AI</p>
+          <h1 class="mt-1 text-2xl font-bold tracking-tight">Управление заказами поставщикам</h1>
+          <p class="mt-1 text-sm text-slate-400">Рекомендации, объяснимый спрос и контроль дефицита</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <div id="data-status" class="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-slate-300" aria-live="polite">Загрузка данных…</div>
+          <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Переключить светлую тему" aria-pressed="false" title="Переключить тему">
+            <span class="theme-choice theme-choice-light" aria-hidden="true">☀ <span>Light</span></span>
+            <span class="theme-choice theme-choice-dark" aria-hidden="true">☾ <span>Dark</span></span>
+            <span id="theme-icon" class="theme-icon-state" aria-hidden="true">☾</span>
+          </button>
+        </div>
+      </header>
+
+      <nav class="tabs" aria-label="Разделы приложения">
+        <button class="tab is-active" data-tab="upload">Загрузка данных</button>
+        <button class="tab" data-tab="dashboard">Дашборд заказов</button>
+        <button class="tab" data-tab="detail">Детализация по артикулу</button>
+        <button class="tab" data-tab="anomalies">Аномалии</button>
+        <button class="tab" data-tab="suppliers">Подбор поставщика</button>
+        <button class="tab" data-tab="analytics">Аналитика / Тренды</button>
+        <button class="tab" data-tab="approval">Корректировка и утверждение</button>
+        <button class="tab" data-tab="export">Экспорт</button>
+      </nav>
+
+      <main class="mt-6">
+        <section id="upload" class="tab-panel is-active" aria-labelledby="upload-heading">
+          <div class="grid gap-5 lg:grid-cols-2">
+            <article class="card">
+              <p class="eyebrow">Шаг 1</p><h2 id="upload-heading" class="card-title">Загрузите исходные данные</h2>
+              <p class="mt-2 text-sm text-slate-400">Выберите формат выгрузки, затем проверьте превью и запустите расчёт.</p>
+              <div class="mt-5 grid gap-3 sm:grid-cols-2">
+                <button class="upload-option is-selected"><span>Формат 1С</span><small>Материальная ведомость и продажи</small></button>
+                <button class="upload-option"><span>Свой файл</span><small>Excel или CSV для быстрого анализа</small></button>
+              </div>
+              <label class="drop-zone mt-5" for="file-input"><input id="file-input" type="file" accept=".csv,.xlsx,.xls" /><span>Перетащите файл сюда или выберите на компьютере</span><small>CSV, XLSX · до 20 МБ</small></label>
+              <button class="primary-button mt-5">Запустить расчёт</button>
+            </article>
+            <article class="card">
+              <p class="eyebrow">Демо-данные</p><h2 class="card-title">Моковый набор подключён</h2>
+              <div id="mock-summary" class="mt-5 space-y-3 text-sm text-slate-300"><p>Читаем <code>mock-data.json</code>…</p></div>
+              <button class="secondary-button mt-5" data-go-tab="dashboard">Открыть дашборд</button>
+            </article>
+          </div>
+        </section>
+
+        <section id="dashboard" class="tab-panel" aria-labelledby="dashboard-heading">
+          <div class="mb-5 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div><p class="eyebrow">Рекомендации</p><h2 id="dashboard-heading" class="card-title">Дашборд заказов</h2></div>
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <select id="warehouse-filter" class="filter"><option value="">Все склады</option></select>
+              <select id="category-filter" class="filter"><option value="">Все категории</option></select>
+              <select id="supplier-filter" class="filter"><option value="">Все поставщики</option></select>
+              <select id="urgency-filter" class="filter"><option value="">Любая срочность</option><option value="critical">Критичная</option><option value="high">Высокая</option><option value="medium">Средняя</option><option value="low">Низкая</option></select>
+            </div>
+          </div>
+          <div class="dashboard-metrics mb-5" aria-label="Ключевые показатели заказа">
+            <article class="metric-card"><header><p>Всего позиций</p><span class="metric-change is-positive">+12.28%</span></header><strong>6</strong><a href="#orders-body">Показать позиции</a></article>
+            <article class="metric-card"><header><p>Критичных</p><span class="metric-change is-negative">-4.45%</span></header><strong>1</strong><a href="#urgency-filter">Открыть фильтр</a></article>
+            <article class="metric-card"><header><p>Поставщиков</p><span class="metric-change is-positive">+28.07%</span></header><strong>5</strong><a href="#supplier-filter">Все поставщики</a></article>
+            <article class="metric-card"><header><p>Количество к заказу</p><span class="metric-change is-neutral">Текущий план</span></header><strong>1 360 <small>шт.</small></strong><a href="#approval">Перейти к утверждению</a></article>
+          </div>
+          <div class="table-wrap"><table><thead><tr><th>Артикул</th><th>Наименование</th><th>Категория</th><th>Поставщик</th><th>Склад</th><th>Рекомендовано</th><th>Срочность</th><th>Краткое обоснование</th><th></th></tr></thead><tbody id="orders-body"></tbody></table></div>
+          <p id="orders-empty" class="hidden py-8 text-center text-slate-400">Нет позиций по выбранным фильтрам.</p>
+        </section>
+
+        <section id="detail" class="tab-panel" aria-labelledby="detail-heading">
+          <div class="card">
+            <p class="eyebrow">История спроса</p><h2 id="detail-heading" class="card-title">Детализация по артикулу</h2>
+            <div id="detail-empty" class="chart-placeholder mt-6"><span>Выберите позицию</span><strong>Откройте артикул на дашборде</strong><small>Покажем историю продаж, периоды stockout и обоснование рекомендации.</small></div>
+            <div id="detail-content" class="hidden mt-6">
+              <div class="flex flex-col gap-3 border-b border-line pb-5 md:flex-row md:items-end md:justify-between">
+                <div><p id="detail-sku" class="text-sm font-semibold text-sky-400"></p><h3 id="detail-name" class="mt-1 text-xl font-bold"></h3><p id="detail-meta" class="mt-1 text-sm text-slate-400"></p></div>
+                <div id="detail-urgency"></div>
+              </div>
+              <div class="chart-area mt-6"><canvas id="sales-chart" aria-label="График истории продаж" role="img"></canvas></div>
+              <p class="mt-3 text-xs text-slate-400"><span class="stockout-key" aria-hidden="true"></span>Заштрихованные области — периоды отсутствия товара на складе.</p>
+              <div class="reasoning-card mt-6"><p class="eyebrow">Обоснование рекомендации</p><p id="detail-explanation" class="mt-3 leading-7 text-slate-200"></p></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="anomalies" class="tab-panel" aria-labelledby="anomalies-heading"><div class="card"><p class="eyebrow">Контроль выбросов</p><h2 id="anomalies-heading" class="card-title">Исключённые разовые заказы</h2><div class="table-wrap mt-5"><table><thead><tr><th>Артикул</th><th>Дата</th><th>Количество</th><th>Клиент</th><th>Причина исключения</th><th></th></tr></thead><tbody id="anomalies-body"></tbody></table></div></div></section>
+
+        <section id="suppliers" class="tab-panel" aria-labelledby="suppliers-heading">
+          <div class="card">
+            <p class="eyebrow">Рекомендательный ориентир</p><h2 id="suppliers-heading" class="card-title">Подбор поставщика на рынке</h2>
+            <div id="supplier-empty" class="chart-placeholder mt-6"><span>Выберите позицию</span><strong>Найдите альтернативу на дашборде</strong><small>Сравним текущего поставщика с предложениями рынка по цене, MOQ и сроку.</small></div>
+            <div id="supplier-content" class="hidden mt-6">
+              <div class="flex flex-col gap-3 border-b border-line pb-5 md:flex-row md:items-end md:justify-between"><div><p id="supplier-sku" class="text-sm font-semibold text-sky-400"></p><h3 id="supplier-product" class="mt-1 text-xl font-bold"></h3><p id="supplier-current" class="mt-1 text-sm text-slate-400"></p></div><span class="market-note">Онлайн-поиск · ориентир</span></div>
+              <p id="supplier-status" class="supplier-status mt-4" role="status"></p>
+              <div class="table-wrap mt-6"><table><thead><tr><th>Поставщик</th><th>Статус</th><th>Цена за ед.</th><th>Мин. партия</th><th>Срок поставки</th><th>Источник</th></tr></thead><tbody id="supplier-comparison-body"></tbody></table></div>
+            </div>
+          </div>
+        </section>
+        <section id="analytics" class="tab-panel" aria-labelledby="analytics-heading">
+          <div class="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
+            <article class="card analytics-chart-card"><div class="chart-card-heading"><div><p class="eyebrow">Спрос по категориям</p><h2 id="analytics-heading" class="card-title">Аналитика / Тренды</h2></div><div class="period-switch" aria-label="Период графика"><button class="is-active" type="button">All</button><button type="button">1M</button><button type="button">5M</button><button type="button">1Y</button></div></div><div class="chart-area mt-6"><canvas id="category-demand-chart" aria-label="График спроса по категориям" role="img"></canvas></div></article>
+            <article class="card"><p class="eyebrow">Динамика спроса</p><h2 class="card-title">Топ категорий</h2><div class="mt-5 grid gap-5"><div><h3 class="text-sm font-semibold text-emerald-300">Растущие</h3><ol id="growth-list" class="ranking-list mt-3"></ol></div><div><h3 class="text-sm font-semibold text-rose-300">Падающие</h3><ol id="decline-list" class="ranking-list mt-3"></ol></div></div></article>
+          </div>
+          <article class="card mt-5"><div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><p class="eyebrow">Риск дефицита</p><h2 class="card-title">Склад × категория</h2></div><p class="text-sm text-slate-400">Низкий риск <span class="risk-scale" aria-hidden="true"></span> Высокий риск</p></div><div id="risk-heatmap" class="heatmap mt-6" role="table" aria-label="Тепловая карта риска дефицита"></div></article>
+          <div class="mt-5 grid gap-5 xl:grid-cols-[1.15fr_.85fr]">
+            <article class="card">
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><p class="eyebrow">ИИ-анализ · онлайн</p><h2 class="card-title">Рыночные тренды по отрасли</h2><p class="mt-2 text-sm text-slate-400">Анализ выполняется сервисом с внешним поиском и может занять до 30 секунд.</p></div><button id="refresh-market-trends" class="secondary-button" type="button">Обновить анализ</button></div>
+              <p id="market-trends-status" class="market-trends-status mt-4" role="status"></p>
+              <div id="market-trends-summary" class="market-trends-summary mt-5"></div>
+              <div class="mt-6 border-t border-line pt-5"><h3 class="text-sm font-semibold">Источники</h3><ul id="market-trends-sources" class="market-trends-sources mt-3"></ul></div>
+            </article>
+            <article class="card">
+              <p class="eyebrow">Планирование закупок</p><h2 class="card-title">Сезонный календарь закупок</h2><p class="mt-2 text-sm text-slate-400">Заказать до = начало пика − срок поставки − буфер 5 дней.</p>
+              <ol id="seasonal-calendar" class="seasonal-calendar mt-5"></ol>
+            </article>
+          </div>
+        </section>
+        <section id="approval" class="tab-panel" aria-labelledby="approval-heading">
+          <div class="card">
+            <p class="eyebrow">Контроль менеджера</p><h2 id="approval-heading" class="card-title">Корректировка и утверждение</h2>
+            <div class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p class="text-slate-400">Позиции сгруппированы по поставщикам. Утверждение сохраняется только в браузере и не отправляет заказ поставщику.</p><button id="add-position-button" class="secondary-button shrink-0" type="button" aria-expanded="false" aria-controls="manual-position-form">Добавить позицию</button></div>
+            <form id="manual-position-form" class="manual-position-form hidden mt-5" novalidate>
+              <div class="flex items-start justify-between gap-4"><div><h3 class="font-semibold">Новая ручная позиция</h3><p class="mt-1 text-sm text-slate-400">Она не меняет расчёт и будет добавлена только в заказ выбранного поставщика.</p></div><button id="cancel-manual-position" class="icon-button" type="button" aria-label="Закрыть форму добавления">×</button></div>
+              <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <label class="field-label">Артикул<input class="form-input mt-1" name="sku" type="text" required /></label>
+                <label class="field-label">Наименование<input class="form-input mt-1" name="name" type="text" required /></label>
+                <label class="field-label">Категория<input class="form-input mt-1" name="category" type="text" list="manual-categories" required /></label>
+                <label class="field-label">Поставщик<input class="form-input mt-1" name="supplier" type="text" list="manual-suppliers" required /></label>
+                <label class="field-label">Склад<input class="form-input mt-1" name="warehouse" type="text" list="manual-warehouses" required /></label>
+                <label class="field-label">Количество к заказу<input class="form-input mt-1" name="quantity" type="number" min="1" step="1" required /></label>
+                <label class="field-label md:col-span-2 xl:col-span-3">Причина добавления<input class="reason-input mt-1" name="reason" type="text" placeholder="Нет в расчёте, но нужно для проекта X" required /></label>
+              </div>
+              <datalist id="manual-categories"></datalist><datalist id="manual-suppliers"></datalist><datalist id="manual-warehouses"></datalist>
+              <p id="manual-position-error" class="manual-position-error mt-3" role="alert"></p>
+              <div class="mt-4 flex flex-wrap gap-3"><button class="primary-button" type="submit">Добавить</button><button class="secondary-button" type="button" data-cancel-manual>Отмена</button></div>
+            </form>
+            <p id="approval-status" class="hidden mt-4 rounded-lg border border-emerald-800 bg-emerald-950/40 px-4 py-3 text-sm text-emerald-200" role="status"></p>
+            <div id="approval-groups" class="mt-6 space-y-5"></div>
+          </div>
+        </section>
+        <section id="export" class="tab-panel" aria-labelledby="export-heading">
+          <div class="grid gap-5 lg:grid-cols-[1.1fr_.9fr]">
+            <article class="card">
+              <p class="eyebrow">Выходной формат</p><h2 id="export-heading" class="card-title">Экспорт заказов</h2>
+              <p class="mt-3 text-slate-400">CSV включает утверждённые заказы, а если их ещё нет — текущие рекомендации с внесёнными корректировками.</p>
+              <div class="mt-5 flex flex-wrap gap-3">
+                <button id="csv-export" class="primary-button" type="button">Скачать как CSV</button>
+                <button id="excel-export" class="primary-button" type="button">Скачать как Excel</button>
+                <button id="pdf-export" class="primary-button" type="button">Скачать как PDF</button>
+              </div>
+              <p id="export-status" class="mt-3 text-sm text-slate-400" role="status"></p>
+            </article>
+            <article class="card">
+              <p class="eyebrow">Демо-лог</p><h2 class="card-title">История расчётов</h2>
+              <ol class="history-list mt-5"><li><span class="history-dot"></span><div><strong>Тестовый расчёт</strong><p>23 сентября 2026 · 6 рекомендаций сформировано</p></div></li></ol>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>
