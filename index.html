@@ -33,7 +33,9 @@
         <div class="flex items-center gap-3">
           <div id="data-status" class="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-slate-300" aria-live="polite">Загрузка данных…</div>
           <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Переключить светлую тему" aria-pressed="false" title="Переключить тему">
-            <span id="theme-icon" aria-hidden="true">☾</span>
+            <span class="theme-choice theme-choice-light" aria-hidden="true">☀ <span>Light</span></span>
+            <span class="theme-choice theme-choice-dark" aria-hidden="true">☾ <span>Dark</span></span>
+            <span id="theme-icon" class="theme-icon-state" aria-hidden="true">☾</span>
           </button>
         </div>
       </header>
@@ -80,6 +82,12 @@
               <select id="urgency-filter" class="filter"><option value="">Любая срочность</option><option value="critical">Критичная</option><option value="high">Высокая</option><option value="medium">Средняя</option><option value="low">Низкая</option></select>
             </div>
           </div>
+          <div class="dashboard-metrics mb-5" aria-label="Ключевые показатели заказа">
+            <article class="metric-card"><header><p>Всего позиций</p><span class="metric-change is-positive">+12.28%</span></header><strong>6</strong><a href="#orders-body">Показать позиции</a></article>
+            <article class="metric-card"><header><p>Критичных</p><span class="metric-change is-negative">-4.45%</span></header><strong>1</strong><a href="#urgency-filter">Открыть фильтр</a></article>
+            <article class="metric-card"><header><p>Поставщиков</p><span class="metric-change is-positive">+28.07%</span></header><strong>5</strong><a href="#supplier-filter">Все поставщики</a></article>
+            <article class="metric-card"><header><p>Количество к заказу</p><span class="metric-change is-neutral">Текущий план</span></header><strong>1 360 <small>шт.</small></strong><a href="#approval">Перейти к утверждению</a></article>
+          </div>
           <div class="table-wrap"><table><thead><tr><th>Артикул</th><th>Наименование</th><th>Категория</th><th>Поставщик</th><th>Склад</th><th>Рекомендовано</th><th>Срочность</th><th>Краткое обоснование</th><th></th></tr></thead><tbody id="orders-body"></tbody></table></div>
           <p id="orders-empty" class="hidden py-8 text-center text-slate-400">Нет позиций по выбранным фильтрам.</p>
         </section>
@@ -107,20 +115,21 @@
             <p class="eyebrow">Рекомендательный ориентир</p><h2 id="suppliers-heading" class="card-title">Подбор поставщика на рынке</h2>
             <div id="supplier-empty" class="chart-placeholder mt-6"><span>Выберите позицию</span><strong>Найдите альтернативу на дашборде</strong><small>Сравним текущего поставщика с предложениями рынка по цене, MOQ и сроку.</small></div>
             <div id="supplier-content" class="hidden mt-6">
-              <div class="flex flex-col gap-3 border-b border-line pb-5 md:flex-row md:items-end md:justify-between"><div><p id="supplier-sku" class="text-sm font-semibold text-sky-400"></p><h3 id="supplier-product" class="mt-1 text-xl font-bold"></h3><p id="supplier-current" class="mt-1 text-sm text-slate-400"></p></div><span class="market-note">Демо-данные · ориентир</span></div>
+              <div class="flex flex-col gap-3 border-b border-line pb-5 md:flex-row md:items-end md:justify-between"><div><p id="supplier-sku" class="text-sm font-semibold text-sky-400"></p><h3 id="supplier-product" class="mt-1 text-xl font-bold"></h3><p id="supplier-current" class="mt-1 text-sm text-slate-400"></p></div><span class="market-note">Онлайн-поиск · ориентир</span></div>
+              <p id="supplier-status" class="supplier-status mt-4" role="status"></p>
               <div class="table-wrap mt-6"><table><thead><tr><th>Поставщик</th><th>Статус</th><th>Цена за ед.</th><th>Мин. партия</th><th>Срок поставки</th><th>Источник</th></tr></thead><tbody id="supplier-comparison-body"></tbody></table></div>
             </div>
           </div>
         </section>
         <section id="analytics" class="tab-panel" aria-labelledby="analytics-heading">
           <div class="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
-            <article class="card"><p class="eyebrow">Спрос по категориям</p><h2 id="analytics-heading" class="card-title">Аналитика / Тренды</h2><div class="chart-area mt-6"><canvas id="category-demand-chart" aria-label="График спроса по категориям" role="img"></canvas></div></article>
+            <article class="card analytics-chart-card"><div class="chart-card-heading"><div><p class="eyebrow">Спрос по категориям</p><h2 id="analytics-heading" class="card-title">Аналитика / Тренды</h2></div><div class="period-switch" aria-label="Период графика"><button class="is-active" type="button">All</button><button type="button">1M</button><button type="button">5M</button><button type="button">1Y</button></div></div><div class="chart-area mt-6"><canvas id="category-demand-chart" aria-label="График спроса по категориям" role="img"></canvas></div></article>
             <article class="card"><p class="eyebrow">Динамика спроса</p><h2 class="card-title">Топ категорий</h2><div class="mt-5 grid gap-5"><div><h3 class="text-sm font-semibold text-emerald-300">Растущие</h3><ol id="growth-list" class="ranking-list mt-3"></ol></div><div><h3 class="text-sm font-semibold text-rose-300">Падающие</h3><ol id="decline-list" class="ranking-list mt-3"></ol></div></div></article>
           </div>
           <article class="card mt-5"><div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><p class="eyebrow">Риск дефицита</p><h2 class="card-title">Склад × категория</h2></div><p class="text-sm text-slate-400">Низкий риск <span class="risk-scale" aria-hidden="true"></span> Высокий риск</p></div><div id="risk-heatmap" class="heatmap mt-6" role="table" aria-label="Тепловая карта риска дефицита"></div></article>
           <div class="mt-5 grid gap-5 xl:grid-cols-[1.15fr_.85fr]">
             <article class="card">
-              <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><p class="eyebrow">ИИ-анализ · демо</p><h2 class="card-title">Рыночные тренды по отрасли</h2><p class="mt-2 text-sm text-slate-400">Сводка составлена из моковых данных; подключение ai_service будет добавлено отдельно.</p></div><button id="refresh-market-trends" class="secondary-button" type="button">Обновить анализ</button></div>
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><p class="eyebrow">ИИ-анализ · онлайн</p><h2 class="card-title">Рыночные тренды по отрасли</h2><p class="mt-2 text-sm text-slate-400">Анализ выполняется сервисом с внешним поиском и может занять до 30 секунд.</p></div><button id="refresh-market-trends" class="secondary-button" type="button">Обновить анализ</button></div>
               <p id="market-trends-status" class="market-trends-status mt-4" role="status"></p>
               <div id="market-trends-summary" class="market-trends-summary mt-5"></div>
               <div class="mt-6 border-t border-line pt-5"><h3 class="text-sm font-semibold">Источники</h3><ul id="market-trends-sources" class="market-trends-sources mt-3"></ul></div>
