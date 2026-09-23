@@ -10,7 +10,9 @@
       "urgency": "critical",
       "reasoning": {"base_demand": 80, "seasonality_factor": 1.4, "stockout_compensation": 15, "trend_growth": 0.05, "explanation_text": "Спрос стабильно растёт на 5%; сезонный коэффициент 1,4 и компенсация дефицита повышают потребность."},
       "history": [{"date":"2026-01-01","qty":57},{"date":"2026-02-01","qty":64},{"date":"2026-03-01","qty":71},{"date":"2026-04-01","qty":80}],
-      "stockout_periods": [{"start":"2026-03-10","end":"2026-03-25"}]
+      "stockout_periods": [{"start":"2026-03-10","end":"2026-03-25"}],
+      "lead_time_days": 4,
+      "peak_season_start": "2026-10-01"
     },
     {
       "sku": "CAB-505",
@@ -22,7 +24,9 @@
       "urgency": "high",
       "reasoning": {"base_demand": 620, "seasonality_factor": 1.2, "stockout_compensation": 40, "trend_growth": 0.08, "explanation_text": "Монтажный сезон увеличивает спрос; устойчивый рост 8% требует пополнения с запасом."},
       "history": [{"date":"2026-01-01","qty":420},{"date":"2026-02-01","qty":510},{"date":"2026-03-01","qty":610},{"date":"2026-04-01","qty":670}],
-      "stockout_periods": []
+      "stockout_periods": [],
+      "lead_time_days": 6,
+      "peak_season_start": "2026-10-15"
     },
     {
       "sku": "LGT-220",
@@ -34,7 +38,9 @@
       "urgency": "medium",
       "reasoning": {"base_demand": 70, "seasonality_factor": 1.1, "stockout_compensation": 0, "trend_growth": 0.02, "explanation_text": "Спрос ровный, с умеренным сезонным повышением и небольшим положительным трендом."},
       "history": [{"date":"2026-01-01","qty":61},{"date":"2026-02-01","qty":68},{"date":"2026-03-01","qty":71},{"date":"2026-04-01","qty":73}],
-      "stockout_periods": []
+      "stockout_periods": [],
+      "lead_time_days": 8,
+      "peak_season_start": "2026-11-22"
     },
     {
       "sku": "TOOL-040",
@@ -58,7 +64,9 @@
       "urgency": "high",
       "reasoning": {"base_demand": 145, "seasonality_factor": 1.3, "stockout_compensation": 22, "trend_growth": 0.04, "explanation_text": "После периода отсутствия товара восстановлен скрытый спрос; сезонный коэффициент повышает заказ."},
       "history": [{"date":"2026-01-01","qty":104},{"date":"2026-02-01","qty":120},{"date":"2026-03-01","qty":98},{"date":"2026-04-01","qty":149}],
-      "stockout_periods": [{"start":"2026-03-05","end":"2026-03-18"}]
+      "stockout_periods": [{"start":"2026-03-05","end":"2026-03-18"}],
+      "lead_time_days": 3,
+      "peak_season_start": "2026-10-02"
     },
     {
       "sku": "REL-024",
@@ -76,5 +84,48 @@
   "excluded_anomalies": [
     {"sku":"ABC-123","date":"2026-04-02","qty":500,"client_id":"anon-9981","reason":"разовая крупная продажа одному клиенту"},
     {"sku":"CAB-505","date":"2026-03-14","qty":4200,"client_id":"anon-4412","reason":"нетипичный оптовый заказ, исключён из регулярной потребности"}
-  ]
+  ],
+  "market_alternatives": {
+    "ABC-123": [
+      {"supplier":"ТОО ЭнергоОпт","price":2850,"moq":50,"lead_time":"3–5 дней","source_url":"https://example.com/energoopt/abc-123"},
+      {"supplier":"KazElectro Market","price":2790,"moq":100,"lead_time":"5–7 дней","source_url":"https://example.com/kazelectro/abc-123"}
+    ],
+    "CAB-505": [
+      {"supplier":"Alatau Cable","price":395,"moq":500,"lead_time":"4–6 дней","source_url":"https://example.com/alatau-cable/cab-505"},
+      {"supplier":"ТОО Провода KZ","price":410,"moq":300,"lead_time":"2–4 дня","source_url":"https://example.com/provoda-kz/cab-505"},
+      {"supplier":"Qazaq Wire","price":388,"moq":1000,"lead_time":"7–10 дней","source_url":"https://example.com/qazaq-wire/cab-505"}
+    ],
+    "SOCK-110": [
+      {"supplier":"ElectroHub Казахстан","price":1620,"moq":50,"lead_time":"3–4 дня","source_url":"https://example.com/electrohub/sock-110"},
+      {"supplier":"ТОО Розетка Опт","price":1580,"moq":100,"lead_time":"6–8 дней","source_url":"https://example.com/rozetka-opt/sock-110"}
+    ]
+  },
+  "analytics": {
+    "category_demand": {
+      "labels":["Янв","Фев","Мар","Апр","Май","Июн"],
+      "series":[
+        {"category":"Автоматика","values":[92,101,114,126,137,149]},
+        {"category":"Кабельная продукция","values":[510,560,640,690,730,775]},
+        {"category":"Светотехника","values":[146,151,158,165,172,177]},
+        {"category":"Инструменты","values":[88,85,82,79,75,72]}
+      ]
+    },
+    "category_growth":[
+      {"category":"Кабельная продукция","change_percent":52},
+      {"category":"Автоматика","change_percent":48},
+      {"category":"Светотехника","change_percent":21},
+      {"category":"Инструменты","change_percent":-18}
+    ],
+    "stock_risk": {
+      "warehouses":["Склад №1","Склад №2","Склад №3"],
+      "categories":["Автоматика","Кабельная продукция","Светотехника","Инструменты"],
+      "values":[[82,38,46,21],[65,91,53,34],[58,44,27,71]]
+    },
+    "market_trends": [
+      {"category":"Автоматика","summary":"Спрос на автоматические выключатели продолжает расти на фоне обновления коммерческой недвижимости и модернизации щитового оборудования. Покупатели чаще запрашивают позиции с коротким сроком поставки и подтверждённой совместимостью. На ближайший месяц стоит поддерживать резерв по ходовым номиналам.","sources":[{"title":"Обзор рынка электротехники","url":"https://example.com/market/electrical-automation"}]},
+      {"category":"Кабельная продукция","summary":"Кабельная продукция показывает наиболее сильную положительную динамику из-за активного монтажного сезона. На рынке заметна чувствительность к цене меди и минимальным партиям поставщиков. Закупки стоит дробить по срокам, сохраняя запас на быстрорастущие сечения.","sources":[{"title":"Индекс цен на кабель","url":"https://example.com/market/cable-price-index"}]},
+      {"category":"Светотехника","summary":"Спрос на LED-светильники растёт плавно: проекты по энергоэффективности поддерживают базовый объём, но резких всплесков не ожидается. Клиенты всё чаще сравнивают гарантийные условия и световую отдачу. Оптимален плановый заказ без значительного страхового запаса.","sources":[{"title":"Отраслевой дайджест светотехники","url":"https://example.com/market/lighting-digest"}]},
+      {"category":"Инструменты","summary":"По инструментам сохраняется умеренное снижение спроса после завершения части монтажных работ. Рынок остаётся конкурентным, поэтому важнее оборачиваемость и комплектность, чем увеличение запаса. До нового проектного сезона достаточно пополнять позиции небольшими партиями.","sources":[{"title":"Мониторинг профессионального инструмента","url":"https://example.com/market/tools-monitoring"}]}
+    ]
+  }
 }
