@@ -23,7 +23,13 @@ COMMON_ALIASES = {
     "date": {"дата", "дата продажи", "date"},
     "quantity": {"количество", "qty", "quantity", "кол-во"},
     "price": {"цена", "price", "стоимость"},
-    "client_id": {"обезличенный клиент", "client_id", "клиент", "контрагент"},
+    "client_id": {
+        "обезличенный клиент",
+        "обезличенный_клиент_id",
+        "client_id",
+        "клиент",
+        "контрагент",
+    },
     "warehouse": {"склад", "warehouse"},
     "stock": {"остаток", "stock", "остаток на складе"},
     "in_transit": {"товары в пути", "в пути", "in_transit", "goods_in_transit"},
@@ -101,8 +107,85 @@ def parse_1c(content: bytes, filename: str) -> tuple[pd.DataFrame, list[str]]:
 
 def parse_custom_file(content: bytes, filename: str) -> tuple[pd.DataFrame, list[str]]:
     """Parse the team's simplified CSV/XLSX template."""
+    suffix = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if suffix in {"xlsx", "xls"}:
+        workbook = pd.read_excel(BytesIO(content), sheet_name=None)
+        normalised_sheets = {_normalise_column(name): frame for name, frame in workbook.items()}
+        required_sheets = {
+            "продажи": "Продажи",
+            "остатки": "Остатки",
+            "товары в пути": "Товары в пути",
+            "поставщики": "Поставщики",
+        }
+        if all(sheet in normalised_sheets for sheet in required_sheets):
+            return _parse_custom_workbook(normalised_sheets)
+
     frame = _canonicalise_columns(_read_table(content, filename), COMMON_ALIASES)
     return frame, _validate(frame)
+
+
+def _parse_custom_workbook(workbook: dict[str, pd.DataFrame]) -> tuple[pd.DataFrame, list[str]]:
+    """Join the four-table custom workbook into the calculation core's row format."""
+    sales = _canonicalise_columns(workbook["продажи"], COMMON_ALIASES)
+    stocks = _canonicalise_columns(workbook["остатки"], COMMON_ALIASES)
+    transit = _canonicalise_columns(workbook["товары в пути"], COMMON_ALIASES)
+    suppliers = _canonicalise_columns(workbook["поставщики"], COMMON_ALIASES)
+
+    table_requirements = {
+        "Продажи": (sales, {"sku", "name", "category", "date", "quantity", "price", "client_id", "warehouse"}),
+        "Остатки": (stocks, {"sku", "date", "warehouse", "stock"}),
+        "Товары в пути": (transit, {"sku", "warehouse", "in_transit"}),
+        "Поставщики": (suppliers, {"sku", "supplier", "lead_time_days"}),
+    }
+    missing_messages: list[str] = []
+    for sheet_name, (frame, required) in table_requirements.items():
+        missing = sorted(required - set(frame.columns))
+        if missing:
+            missing_messages.append(f"{sheet_name}: {', '.join(missing)}")
+    if missing_messages:
+        raise FileValidationError("Не найдены колонки на листах: " + "; ".join(missing_messages))
+
+    stocks = stocks[["sku", "date", "warehouse", "stock"]].copy()
+    transit = transit[["sku", "warehouse", "in_transit"]].copy()
+    suppliers = suppliers[["sku", "supplier", "lead_time_days"]].copy()
+    for frame in (sales, stocks):
+        frame["date"] = pd.to_datetime(frame["date"], errors="coerce").dt.normalize()
+
+    key_checks = {
+        "Остатки": (stocks, ["sku", "warehouse", "date"]),
+        "Товары в пути": (transit, ["sku", "warehouse"]),
+        "Поставщики": (suppliers, ["sku"]),
+    }
+    for sheet_name, (frame, keys) in key_checks.items():
+        if frame.duplicated(keys).any():
+            raise FileValidationError(
+                f"Лист «{sheet_name}» содержит дубли по ключу: {', '.join(keys)}."
+            )
+
+    try:
+        combined = sales.merge(
+            stocks,
+            on=["sku", "warehouse", "date"],
+            how="left",
+            validate="many_to_one",
+        )
+        combined = combined.merge(
+            transit,
+            on=["sku", "warehouse"],
+            how="left",
+            validate="many_to_one",
+        )
+        combined = combined.merge(suppliers, on="sku", how="left", validate="many_to_one")
+    except pd.errors.MergeError as exc:
+        raise FileValidationError("Не удалось однозначно объединить листы файла.") from exc
+
+    missing_stock = int(combined["stock"].isna().sum())
+    if missing_stock:
+        raise FileValidationError(
+            f"Для {missing_stock} строк продаж не найден остаток по артикулу, складу и дате."
+        )
+    combined["in_transit"] = combined["in_transit"].fillna(0)
+    return combined, _validate(combined)
 
 
 def parse_upload(content: bytes, filename: str, mode: str) -> tuple[pd.DataFrame, list[str]]:

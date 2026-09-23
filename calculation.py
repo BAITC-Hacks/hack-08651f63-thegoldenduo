@@ -70,7 +70,10 @@ def detect_anomalies(data: pd.DataFrame) -> tuple[pd.DataFrame, list[dict[str, A
         q1, q3 = quantities.quantile([0.25, 0.75])
         iqr = q3 - q1
         if iqr > 0:
-            upper_fence = q3 + 1.5 * iqr
+            # A conservative outer fence avoids treating legitimate seasonal peaks
+            # as one-off orders while still catching the 8-10x customer spikes that
+            # matter for regular replenishment.
+            upper_fence = max(q3 + 3.0 * iqr, float(quantities.median()) * 3.0)
         else:
             # A zero IQR is common for steady sales; retain small natural variation.
             upper_fence = max(q3 * 3.0, q3 + 1.0)
