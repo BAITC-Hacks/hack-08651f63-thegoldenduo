@@ -56,11 +56,16 @@ def _create_response(**kwargs: Any) -> Any:
     try:
         return _client().responses.create(**kwargs)
     except APITimeoutError as exc:
+        print("REAL AI ERROR (timeout):", repr(exc))
         raise AIServiceError("OpenAI API не ответил вовремя. Повторите запрос позже.") from exc
     except APIError as exc:
+        print("REAL AI ERROR (api):", repr(exc))
         raise AIServiceError(
             "OpenAI API вернул ошибку. Проверьте ключ, доступ к модели и лимиты аккаунта."
         ) from exc
+    except Exception as exc:
+        print("REAL AI ERROR (unexpected):", repr(exc))
+        raise AIServiceError("Непредвиденная ошибка при обращении к OpenAI API.") from exc
 
 
 def generate_market_trends(category: str) -> dict[str, Any]:

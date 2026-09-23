@@ -1,7 +1,7 @@
-const AI_API_BASE = 'http://127.0.0.1:8000/ai';
+const AI_API_BASE = '/ai';
 const state = { data: null, selectedSku: null, selectedMarketSku: null, salesChart: null, analyticsChart: null, marketTrends: [], marketTrendsUpdatedAt: null, marketTrendsLoading: false, adjustments: {}, manualOrders: getStoredManualOrders(), approvedOrders: getStoredApprovals() };
 
-const urgencyLabels = { critical: 'Критичная', high: 'Высокая', medium: 'Средняя', low: 'Низкая' };
+const urgencyLabels = { critical: 'Критичная', high: 'Высокая', medium: 'Средняя', normal: 'Обычная', low: 'Низкая' };
 
 function getStoredApprovals() {
   try { return JSON.parse(localStorage.getItem('hackalem-approved-orders')) || []; } catch { return []; }
@@ -39,7 +39,16 @@ function uniqueValues(key) {
 
 function fillFilter(id, key) {
   const select = document.getElementById(id);
+  select.querySelectorAll('option:not(:first-child)').forEach((option) => option.remove());
   uniqueValues(key).forEach((value) => select.insertAdjacentHTML('beforeend', `<option value="${value}">${value}</option>`));
+}
+
+function renderDashboardMetrics() {
+  const orders = state.data.orders;
+  metricTotal.textContent = new Intl.NumberFormat('ru-RU').format(orders.length);
+  metricCritical.textContent = new Intl.NumberFormat('ru-RU').format(orders.filter((order) => order.urgency === 'critical').length);
+  metricSuppliers.textContent = new Intl.NumberFormat('ru-RU').format(new Set(orders.map((order) => order.supplier)).size);
+  metricQuantity.innerHTML = `${new Intl.NumberFormat('ru-RU').format(orders.reduce((sum, order) => sum + (Number(order.recommended_qty) || 0), 0))} <small>шт.</small>`;
 }
 
 function renderOrders() {
@@ -47,7 +56,7 @@ function renderOrders() {
   ordersBody.innerHTML = orders.map((order) => `
     <tr>
       <td><button type="button" class="sku-link" data-sku="${order.sku}">${order.sku}</button></td><td>${order.name}</td><td>${order.category}</td><td>${order.supplier}</td><td>${order.warehouse}</td>
-      <td class="qty">${order.recommended_qty} шт.</td><td><span class="badge badge-${order.urgency}">${urgencyLabels[order.urgency]}</span></td>
+      <td class="qty">${order.recommended_qty} шт.</td><td><span class="badge badge-${order.urgency}">${urgencyLabels[order.urgency] || order.urgency || 'Не указана'}</span></td>
       <td class="reason">${order.reasoning.explanation_text}</td>
       <td><button class="secondary-button market-button" type="button" data-market-sku="${order.sku}">Найти альтернативу</button></td>
     </tr>`).join('');
@@ -194,8 +203,15 @@ function renderAnalytics() {
   });
   const rankingColors = ['#4f8cff', '#ef5c55', '#36c88a', '#8b7cf4'];
   const rankings = (items) => items.map((item, index) => `<li><span class="ranking-dot" style="--ranking-color:${rankingColors[index % rankingColors.length]}"></span><div class="ranking-content"><span>${escapeHtml(item.category)}</span><i style="--progress:${Math.min(Math.abs(item.change_percent), 100)}%;--ranking-color:${rankingColors[index % rankingColors.length]}"></i></div><strong class="${item.change_percent >= 0 ? 'trend-up' : 'trend-down'}">${item.change_percent > 0 ? '+' : ''}${item.change_percent}%</strong></li>`).join('');
-  growthList.innerHTML = rankings(growth.filter((item) => item.change_percent >= 0).sort((a, b) => b.change_percent - a.change_percent));
-  declineList.innerHTML = rankings(growth.filter((item) => item.change_percent < 0).sort((a, b) => a.change_percent - b.change_percent));
+  growthList.innerHTML = rankings(growth.filter((item) => item.change_percent >= 0).sort((a, b) => b.change_percent - a.change_percent)) || '<li class="text-slate-400">Нет данных</li>';
+  declineList.innerHTML = rankings(growth.filter((item) => item.change_percent < 0).sort((a, b) => a.change_percent - b.change_percent)) || '<li class="text-slate-400">Нет данных</li>';
+  if (!risk.categories.length || !risk.warehouses.length) {
+    riskHeatmap.style.gridTemplateColumns = '1fr';
+    riskHeatmap.innerHTML = '<div class="p-5 text-slate-400">Нет данных для оценки риска.</div>';
+    renderMarketTrends(state.marketTrends);
+    renderSeasonalCalendar();
+    return;
+  }
   const cells = ['<div class="heatmap-corner"></div>', ...risk.categories.map((category) => `<div class="heatmap-label heatmap-column">${escapeHtml(category)}</div>`)]
     .concat(risk.warehouses.flatMap((warehouse, rowIndex) => [`<div class="heatmap-label">${escapeHtml(warehouse)}</div>`, ...risk.values[rowIndex].map((value, categoryIndex) => `<div class="heatmap-cell" role="cell" style="--risk-hue:${Math.round(120 - value * 1.2)}" title="${escapeHtml(warehouse)} · ${escapeHtml(risk.categories[categoryIndex])}: риск ${value}%"><strong>${value}%</strong><span>${value >= 70 ? 'Высокий' : value >= 40 ? 'Средний' : 'Низкий'}</span></div>`)]));
   riskHeatmap.style.gridTemplateColumns = `minmax(8rem, 1.2fr) repeat(${risk.categories.length}, minmax(8rem, 1fr))`;
@@ -258,7 +274,8 @@ function renderDetail(order) {
 
 function renderAnomalies() {
   anomaliesBody.innerHTML = state.data.excluded_anomalies.map((item) => `
-    <tr><td class="font-semibold text-sky-300">${item.sku}</td><td>${item.date}</td><td class="qty">${item.qty} шт.</td><td>${item.client_id}</td><td class="reason">${item.reason}</td><td><button class="secondary-button">Вернуть в расчёт</button></td></tr>`).join('');
+    <tr><td class="font-semibold text-sky-300">${item.sku}</td><td>${item.date}</td><td class="qty">${item.qty} шт.</td><td>${item.client_id}</td><td class="reason">${item.reason}</td><td><button class="secondary-button">Вернуть в расчёт</button></td></tr>`).join('')
+    || '<tr><td colspan="6" class="py-8 text-center text-slate-400">Аномалий не обнаружено.</td></tr>';
 }
 
 function getApprovalOrders() {
@@ -380,6 +397,7 @@ function renderExportStatus() {
   } else {
     exportStatus.textContent = `Готово к экспорту: ${positionCountLabel(count)} в текущих рекомендациях${state.manualOrders.length ? `, включая ${positionCountLabel(state.manualOrders.length, 'manual')}` : ''}.`;
   }
+  calculationHistory.innerHTML = `<li><span class="history-dot"></span><div><strong>Текущий расчёт сервера</strong><p>Сервер вернул ${positionCountLabel(state.data.orders.length)} через API${state.approvedOrders.length ? ` · утверждено групп: ${state.approvedOrders.length}` : ''}</p></div></li>`;
 }
 
 function downloadCsv() {
@@ -429,19 +447,73 @@ function downloadPdf() {
   }
 }
 
-async function loadMockData() {
-  const status = document.getElementById('data-status');
+function buildAnalytics(orders) {
+  const dates = [...new Set(orders.flatMap((order) => (Array.isArray(order.history) ? order.history : []).map((item) => item.date)))].sort();
+  const categories = [...new Set(orders.map((order) => order.category))].sort();
+  const warehouses = [...new Set(orders.map((order) => order.warehouse))].sort();
+  const demandByCategory = new Map(categories.map((category) => [category, new Map(dates.map((date) => [date, 0]))]));
+
+  orders.forEach((order) => {
+    const categoryDemand = demandByCategory.get(order.category);
+    (Array.isArray(order.history) ? order.history : []).forEach((item) => {
+      categoryDemand.set(item.date, (categoryDemand.get(item.date) || 0) + (Number(item.qty) || 0));
+    });
+  });
+
+  const series = categories.map((category) => ({ category, values: dates.map((date) => demandByCategory.get(category).get(date) || 0) }));
+  const categoryGrowth = series.map(({ category, values }) => {
+    const first = values[0] || 0;
+    const last = values.at(-1) || 0;
+    const changePercent = first ? Math.round(((last - first) / first) * 100) : last ? 100 : 0;
+    return { category, change_percent: changePercent };
+  });
+  const riskScore = { critical: 90, high: 65, medium: 40, normal: 25, low: 15 };
+  const riskValues = warehouses.map((warehouse) => categories.map((category) => {
+    const matching = orders.filter((order) => order.warehouse === warehouse && order.category === category);
+    if (!matching.length) return 0;
+    return Math.round(matching.reduce((sum, order) => sum + (riskScore[order.urgency] || 25), 0) / matching.length);
+  }));
+
+  return {
+    category_demand: {
+      labels: dates.map((date) => new Intl.DateTimeFormat('ru-RU', { month: 'short', year: 'numeric' }).format(new Date(`${date}T00:00:00`))),
+      series
+    },
+    category_growth: categoryGrowth,
+    stock_risk: { warehouses, categories, values: riskValues }
+  };
+}
+
+async function fetchBackendJson(path) {
+  let response;
   try {
-    const response = await fetch('mock-data.json');
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    state.data = await response.json();
+    response = await fetch(path);
+  } catch {
+    throw new Error('Бэкенд недоступен. Запустите приложение через start.bat и повторите попытку.');
+  }
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = typeof payload.detail === 'string' ? payload.detail : `HTTP ${response.status}`;
+    throw new Error(detail);
+  }
+  return payload;
+}
+
+async function loadServerData() {
+  const status = document.getElementById('data-status');
+  const summary = document.getElementById('data-summary');
+  try {
+    const [ordersPayload, anomalies] = await Promise.all([fetchBackendJson('/orders'), fetchBackendJson('/anomalies')]);
+    if (!Array.isArray(ordersPayload.orders) || !Array.isArray(anomalies)) throw new Error('Сервер вернул данные в неожиданном формате.');
+    state.data = { ...ordersPayload, excluded_anomalies: anomalies, analytics: buildAnalytics(ordersPayload.orders) };
     fillFilter('warehouse-filter', 'warehouse'); fillFilter('category-filter', 'category'); fillFilter('supplier-filter', 'supplier');
-    renderOrders(); renderAnomalies(); renderApproval(); renderManualFormOptions(); renderExportStatus();
-    document.getElementById('mock-summary').innerHTML = `<p><strong class="text-slate-100">${state.data.orders.length}</strong> рекомендованных позиций в ${uniqueValues('category').length} категориях.</p><p><strong class="text-slate-100">${state.data.excluded_anomalies.length}</strong> аномалии исключены из регулярной потребности.</p>`;
-    status.textContent = 'Моковые данные загружены';
+    renderDashboardMetrics(); renderOrders(); renderAnomalies(); renderApproval(); renderManualFormOptions(); renderExportStatus();
+    summary.innerHTML = `<p>Рекомендаций: <strong class="text-slate-100">${state.data.orders.length}</strong>; категорий: <strong class="text-slate-100">${uniqueValues('category').length}</strong>.</p><p>Аномалий в расчёте: <strong class="text-slate-100">${state.data.excluded_anomalies.length}</strong>.</p>`;
+    status.textContent = `Данные загружены: ${positionCountLabel(state.data.orders.length)}`;
   } catch (error) {
-    status.textContent = 'Не удалось загрузить mock-data.json';
-    document.getElementById('mock-summary').innerHTML = '<p class="text-red-300">Запустите сайт через локальный статический сервер: fetch не работает при открытии HTML как файла.</p>';
+    state.data = null;
+    status.textContent = 'Не удалось загрузить данные с сервера';
+    summary.innerHTML = `<p class="text-red-300">${escapeHtml(error instanceof Error ? error.message : 'Неизвестная ошибка загрузки.')}</p>`;
     console.error(error);
   }
 }
@@ -491,6 +563,11 @@ const marketTrendsStatus = document.getElementById('market-trends-status');
 const marketTrendsSummary = document.getElementById('market-trends-summary');
 const marketTrendsSources = document.getElementById('market-trends-sources');
 const seasonalCalendar = document.getElementById('seasonal-calendar');
+const metricTotal = document.getElementById('metric-total');
+const metricCritical = document.getElementById('metric-critical');
+const metricSuppliers = document.getElementById('metric-suppliers');
+const metricQuantity = document.getElementById('metric-quantity');
+const calculationHistory = document.getElementById('calculation-history');
 
 document.querySelectorAll('.tab').forEach((button) => button.addEventListener('click', () => setActiveTab(button.dataset.tab)));
 document.querySelectorAll('[data-go-tab]').forEach((button) => button.addEventListener('click', () => setActiveTab(button.dataset.goTab)));
@@ -553,4 +630,4 @@ marketTrendsButton.addEventListener('click', async () => {
 });
 themeToggle.addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
 applyTheme(document.documentElement.dataset.theme);
-loadMockData();
+loadServerData();

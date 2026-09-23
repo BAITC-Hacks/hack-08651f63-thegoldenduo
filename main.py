@@ -229,3 +229,8 @@ async def market_alternatives(request: MarketAlternativesRequest) -> dict[str, A
             status_code=502,
             detail="Сервис поиска поставщиков временно недоступен. Повторите запрос позже.",
         ) from exc
+
+
+from fastapi.staticfiles import StaticFiles
+
+app.mount("/", StaticFiles(directory=".", html=True), name="frontend")
